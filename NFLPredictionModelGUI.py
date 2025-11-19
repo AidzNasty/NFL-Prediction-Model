@@ -238,7 +238,7 @@ def load_data():
         
         # Try to load ML predictions if available
         try:
-            ml_predictions = pd.read_csv('nfl_ml_tracker_with_scores.csv')
+            ml_predictions = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=0)
             ml_predictions['date'] = pd.to_datetime(ml_predictions['date'])
         except:
             ml_predictions = None
