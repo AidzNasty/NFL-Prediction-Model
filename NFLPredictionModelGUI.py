@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Nov 19 10:29:19 2025
-
-@author: aidanconte
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
 NFL Prediction Model - Web App Version with ML Integration
 Streamlit web interface for NFL game predictions
 """
@@ -237,16 +229,26 @@ def load_data():
         standings = pd.read_excel(EXCEL_FILE, sheet_name='Standings')
         
         # Try to load ML predictions if available
-        try:
-            ml_predictions = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=0)
-            ml_predictions['date'] = pd.to_datetime(ml_predictions['date'])
-        except:
-            ml_predictions = None
+        ml_predictions = None
+        ml_status = "not_found"  # Track why ML isn't available
         
-        return predictions, standings, home_edge, ml_predictions
+        try:
+            ml_predictions = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model')
+            if len(ml_predictions) == 0:
+                ml_status = "empty"
+                ml_predictions = None
+            else:
+                ml_predictions['date'] = pd.to_datetime(ml_predictions['date'])
+                ml_status = "loaded"
+        except FileNotFoundError:
+            ml_status = "not_found"
+        except Exception as e:
+            ml_status = f"error: {str(e)}"
+        
+        return predictions, standings, home_edge, ml_predictions, ml_status
     except Exception as e:
         st.error(f"Error loading data: {e}")
-        return None, None, None, None
+        return None, None, None, None, "error"
 
 def display_game(game, standings, home_edge, ml_pred=None):
     """Display a single game card"""
@@ -373,7 +375,7 @@ def display_game(game, standings, home_edge, ml_pred=None):
         
         if 'ml_home_score' in ml_pred and 'ml_away_score' in ml_pred:
             st.markdown(
-                f'<div class="score-display">{away_team} {ml_pred["ml_away_score"]} - {ml_pred["ml_home_score"]} {home_team}</div>',
+                f'<div class="score-display">{away_team} {int(ml_pred["ml_away_score"])} - {int(ml_pred["ml_home_score"])} {home_team}</div>',
                 unsafe_allow_html=True
             )
         
@@ -385,6 +387,28 @@ def display_game(game, standings, home_edge, ml_pred=None):
             st.success("✅ Both models agree on winner")
         else:
             st.warning(f"⚠️ Models disagree - Excel: {excel_winner}, ML: {ml_winner}")
+    else:
+        # Show helpful message when ML not available
+        with st.expander("🤖 ML Prediction Not Available - Click for Info"):
+            st.info("""
+            **Why ML predictions aren't showing:**
+            
+            1. **Models not trained yet**
+               - Run: `python NFLPredictionModelTrainScores.py`
+            
+            2. **Predictions not generated**
+               - Run: `python NFLMLTracker.py`
+            
+            3. **CSV file is empty**
+               - Check: `nfl_ml_tracker.csv` has data
+            
+            **Current game details:**
+            - Home: """ + home_team + """
+            - Away: """ + away_team + """
+            - Date: """ + game_date.strftime('%Y-%m-%d') + """
+            
+            After running the commands above, refresh this page (press R).
+            """)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -392,7 +416,7 @@ def main():
     """Main application"""
     
     # Load data
-    predictions, standings, home_edge, ml_predictions = load_data()
+    predictions, standings, home_edge, ml_predictions, ml_status = load_data()
     
     if predictions is None:
         st.error("Failed to load data. Please check that the Excel file exists.")
@@ -402,6 +426,33 @@ def main():
     st.markdown('<div class="centered-container">', unsafe_allow_html=True)
     st.title("🏈 NFL Prediction Model 2025-26")
     st.markdown(f"<p style='text-align: center; color: #666;'>HomeEdge: {home_edge:+.2f} points</p>", unsafe_allow_html=True)
+    
+    # Show ML status warning if needed
+    if ml_status == "not_found":
+        st.sidebar.warning("""
+        **🤖 ML Predictions Not Available**
+        
+        The ML tracker file is missing.
+        
+        **To enable ML predictions:**
+        1. Train models: `python NFLPredictionModelTrainScores.py`
+        2. Generate predictions: `python NFLMLTracker.py`
+        3. Refresh this page
+        """)
+    elif ml_status == "empty":
+        st.sidebar.warning("""
+        **🤖 ML Predictions Not Available**
+        
+        The ML tracker file is empty.
+        
+        **To enable ML predictions:**
+        1. Train models: `python NFLPredictionModelTrainScores.py`
+        2. Generate predictions: `python NFLMLTracker.py`
+        3. Refresh this page
+        """)
+    elif ml_status == "loaded":
+        st.sidebar.success(f"✅ ML Model Active ({len(ml_predictions)} predictions loaded)")
+    
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Sidebar navigation
