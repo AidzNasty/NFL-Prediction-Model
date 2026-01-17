@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NFL Prediction Model - PROPERLY FIXED VERSION
-- Reads from "NFL HomeField Model" sheet
-- Loads ML predictions from "ML Prediction Model" sheet (not CSV)
-- Uses "Locked Correct" for performance calculations
-- Fixed date handling for today's games
+NFL Prediction Model - FIXED VERSION
+Fixed: ML predictions now show correctly (column name mismatch resolved)
 """
 
 import streamlit as st
@@ -168,12 +165,17 @@ def load_data():
         standings = pd.read_excel(EXCEL_FILE, sheet_name='Standings')
         standings = standings.fillna({'W': 0, 'L': 0, 'HomeWin%': 0.5, 'AwayWin%': 0.5, 'PTS': 0})
         
-        # Load ML predictions from Excel sheet (not CSV)
+        # Load ML predictions from Excel sheet
         try:
             ml_predictions = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=0)
+            
+            # DEBUG: Print what we loaded
+            st.sidebar.success(f"✅ Loaded {len(ml_predictions)} ML predictions")
+            st.sidebar.caption(f"Columns: {', '.join(ml_predictions.columns[:5])}")
+            
             return predictions, standings, home_edge, ml_predictions
         except Exception as e:
-            st.warning(f"ML Prediction Model sheet not found: {e}")
+            st.sidebar.warning(f"ML Prediction Model sheet not found: {e}")
             return predictions, standings, home_edge, None
             
     except Exception as e:
@@ -239,10 +241,12 @@ def display_game(game, standings, home_edge, ml_pred=None):
             st.markdown(f'<span class="prob-badge" style="background:{prob_bg};color:{prob_color};">{excel_prob:.1%}</span>', unsafe_allow_html=True)
             st.caption(f"HomeField: {homefield:+.2f}")
         
-        # ML Prediction
+        # ML Prediction - FIXED COLUMN NAMES
         if ml_pred is not None:
             st.markdown("<br>### 🤖 ML Model", unsafe_allow_html=True)
-            ml_winner = ml_pred.get('ml_winner', 'TBD')
+            
+            # ✅ FIX: Use correct column name 'ml_predicted_winner' not 'ml_winner'
+            ml_winner = ml_pred.get('ml_predicted_winner', 'TBD')
             ml_home = safe_int(ml_pred.get('ml_home_score', 0))
             ml_away = safe_int(ml_pred.get('ml_away_score', 0))
             
@@ -307,8 +311,11 @@ def main():
                         ]
                         if len(ml_match) > 0:
                             ml_pred = ml_match.iloc[0]
+                            st.sidebar.info(f"✅ Matched ML for {game['Home Team']}")
+                        else:
+                            st.sidebar.warning(f"❌ No ML match for {game['Home Team']} vs {game['Away Team']} (Week {week_num})")
                     except Exception as e:
-                        pass
+                        st.sidebar.error(f"Error matching ML: {e}")
                 
                 display_game(game, standings, home_edge, ml_pred)
     
@@ -385,7 +392,8 @@ def main():
         
         # ML Model Performance
         if ml_predictions is not None:
-            st.markdown("---### 🤖 ML Model Performance")
+            st.markdown("---")
+            st.markdown("### 🤖 ML Model Performance")
             ml_completed = ml_predictions[ml_predictions['ml_correct'].isin(['YES', 'NO'])].copy()
             
             if len(ml_completed) > 0:
@@ -445,17 +453,23 @@ def main():
                     excel_result = "✅" if game['excel_correct'] == 'YES' else "❌"
                     ml_result = "✅" if game['ml_correct'] == 'YES' else "❌"
                     week_str = week_display_format(game['week'])
+                    
+                    # ✅ FIX: Use correct column names
+                    excel_pred = game.get('excel_predicted_winner', game.get('excel_winner', 'N/A'))
+                    ml_pred = game.get('ml_predicted_winner', game.get('ml_winner', 'N/A'))
+                    
                     display_data.append({
                         "Week": week_str,
                         "Matchup": f"{game['away_team']} @ {game['home_team']}",
-                        "Winner": game['actual_winner'],
-                        "Excel": f"{excel_result} {game['excel_winner']}",
-                        "ML": f"{ml_result} {game['ml_winner']}"
+                        "Winner": game.get('actual_winner', 'TBD'),
+                        "Excel": f"{excel_result} {excel_pred}",
+                        "ML": f"{ml_result} {ml_pred}"
                     })
                 st.dataframe(display_data, use_container_width=True, hide_index=True)
     
     st.markdown("</div>", unsafe_allow_html=True)
-    st.sidebar.markdown("---### About")
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### About")
     st.sidebar.info("**NFL Prediction Model 2025-26**\n\n📊 Excel & 🤖 ML Models\n\nRegular Season + Playoffs")
 
 if __name__ == "__main__":
