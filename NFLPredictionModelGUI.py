@@ -246,7 +246,7 @@ def display_game(game, standings, home_edge, ml_pred=None):
             st.markdown("<br>### 🤖 ML Model", unsafe_allow_html=True)
             
             # ✅ FIX: Use correct column name 'ml_predicted_winner' not 'ml_winner'
-            ml_winner = ml_pred.get('ml_predicted_winner', 'TBD')
+            ml_winner = ml_pred.get('ml_winner')
             ml_home = safe_int(ml_pred.get('ml_home_score', 0))
             ml_away = safe_int(ml_pred.get('ml_away_score', 0))
             
