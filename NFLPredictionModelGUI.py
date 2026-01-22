@@ -632,44 +632,55 @@ def main():
         
         # ML Model Performance
         st.markdown("### ML Model Performance")
-        completed = predictions[predictions['ml_correct'].isin(['YES', 'NO'])].copy()
-        if len(completed) > 0:
-            total = len(completed)
-            correct = (completed['ml_correct'] == 'YES').sum()
-            wrong = total - correct
-            accuracy = (correct / total * 100)
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.markdown(f"""
-                    <div class="stat-card">
-                        <div class="stat-value">{total}</div>
-                        <div class="stat-label">Total Games</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col2:
-                st.markdown(f"""
-                    <div class="stat-card">
-                        <div class="stat-value">{correct}</div>
-                        <div class="stat-label">Correct</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"""
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: #f85149;">{wrong}</div>
-                        <div class="stat-label">Incorrect</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col4:
-                st.markdown(f"""
-                    <div class="stat-card">
-                        <div class="stat-value">{accuracy:.1f}%</div>
-                        <div class="stat-label">Accuracy</div>
-                    </div>
-                """, unsafe_allow_html=True)
+        if ml_predictions is not None and len(ml_predictions) > 0:
+            ml_completed = ml_predictions[pd.notna(ml_predictions.get('ml_correct', pd.Series()))].copy()
+            if len(ml_completed) > 0:
+                ml_completed['ml_correct_num'] = ml_completed['ml_correct'].apply(
+                    lambda x: 1 if str(x).upper() == 'YES' else 0 if str(x).upper() == 'NO' else np.nan
+                )
+                ml_completed = ml_completed[pd.notna(ml_completed['ml_correct_num'])]
+                
+                if len(ml_completed) > 0:
+                    ml_total = len(ml_completed)
+                    ml_correct = ml_completed['ml_correct_num'].sum()
+                    ml_wrong = ml_total - ml_correct
+                    ml_accuracy = (ml_correct / ml_total * 100)
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.markdown(f"""
+                            <div class="stat-card">
+                                <div class="stat-value">{ml_total}</div>
+                                <div class="stat-label">Total Games</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    with col2:
+                        st.markdown(f"""
+                            <div class="stat-card">
+                                <div class="stat-value">{int(ml_correct)}</div>
+                                <div class="stat-label">Correct</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    with col3:
+                        st.markdown(f"""
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #f85149;">{int(ml_wrong)}</div>
+                                <div class="stat-label">Incorrect</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    with col4:
+                        st.markdown(f"""
+                            <div class="stat-card">
+                                <div class="stat-value" style="color: #a371f7;">{ml_accuracy:.1f}%</div>
+                                <div class="stat-label">Accuracy</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("📊 No completed games yet")
+            else:
+                st.info("📊 No completed games yet")
         else:
-            st.info("📊 No completed games yet")
+            st.info("🤖 ML model not available")
 
 if __name__ == "__main__":
     main()
