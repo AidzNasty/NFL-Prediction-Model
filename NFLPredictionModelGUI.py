@@ -263,13 +263,29 @@ def load_data():
         standings = pd.read_excel(EXCEL_FILE, sheet_name='Standings')
         standings = standings.fillna({'W': 0, 'L': 0, 'HomeWin%': 0.5, 'AwayWin%': 0.5})
         
-        # Load ML predictions
+        # Load ML predictions from Excel sheet "ML Prediction Model" (columns B-G)
         ml_predictions = None
         try:
-            ml_predictions = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=0)
-            st.sidebar.success(f"✅ Loaded {len(ml_predictions)} ML predictions")
+            ml_raw = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=None)
+            
+            # Extract columns B through G (indices 1-6)
+            ml_data = ml_raw.iloc[:, 1:7].copy()
+            
+            # Row 0 has headers
+            ml_data.columns = ml_data.iloc[0]
+            ml_data = ml_data[1:].reset_index(drop=True)
+            
+            ml_predictions = ml_data
+            
+            st.sidebar.success(f"✅ Loaded {len(ml_predictions)} ML predictions from Excel")
+            if len(ml_predictions) > 0:
+                st.sidebar.caption(f"Columns: {', '.join(ml_predictions.columns.tolist())}")
+                # Show first few games
+                st.sidebar.caption(f"Sample: {ml_predictions.iloc[0]['away_team']} @ {ml_predictions.iloc[0]['home_team']}")
         except Exception as e:
-            st.sidebar.warning(f"ML Model not found: {e}")
+            st.sidebar.error(f"ML sheet error: {e}")
+            import traceback
+            st.sidebar.caption(traceback.format_exc())
             ml_predictions = pd.DataFrame()
         
         return excel, standings, ml_predictions
@@ -277,18 +293,27 @@ def load_data():
         st.error(f"Error loading data: {e}")
         return None, None, None
 
-def get_ml_prediction(home_team, away_team, week_num, ml_predictions):
-    """Get ML model prediction"""
+def get_ml_prediction(home_team, away_team, week_num, ml_predictions, debug=False):
+    """Get ML model prediction - match by teams only"""
     if ml_predictions is None or len(ml_predictions) == 0:
         return None
     
     try:
+        # Match by home and away team only (no week in ML sheet)
         ml_game = ml_predictions[
-            (ml_predictions['week_num'] == week_num) &
             (ml_predictions['home_team'] == home_team) &
             (ml_predictions['away_team'] == away_team)
         ]
-    except:
+        
+        if debug:
+            if len(ml_game) > 0:
+                st.sidebar.success(f"✓ Found: {away_team} @ {home_team}")
+            else:
+                st.sidebar.warning(f"✗ Not found: {away_team} @ {home_team}")
+        
+    except Exception as e:
+        if debug:
+            st.sidebar.error(f"ML match error: {e}")
         return None
     
     if len(ml_game) == 0:
@@ -301,12 +326,23 @@ def get_ml_prediction(home_team, away_team, week_num, ml_predictions):
     if isinstance(ml_confidence, str) and '%' in str(ml_confidence):
         ml_confidence = float(str(ml_confidence).strip('%')) / 100.0
     else:
-        ml_confidence = float(ml_confidence) if pd.notna(ml_confidence) else 0.5
+        try:
+            ml_confidence = float(ml_confidence) if pd.notna(ml_confidence) else 0.5
+        except:
+            ml_confidence = 0.5
+    
+    # Get scores
+    try:
+        home_score = int(float(ml_game.get('ml_home_score', 0)))
+        away_score = int(float(ml_game.get('ml_away_score', 0)))
+    except:
+        home_score = 0
+        away_score = 0
     
     return {
-        'winner': ml_game.get('ml_winner'),
-        'home_score': int(ml_game.get('ml_home_score', 0)),
-        'away_score': int(ml_game.get('ml_away_score', 0)),
+        'winner': str(ml_game.get('ml_winner', 'Unknown')),
+        'home_score': home_score,
+        'away_score': away_score,
         'confidence': ml_confidence
     }
 
@@ -597,45 +633,10 @@ def main():
         # ML Model Performance
         st.markdown("### ML Model Performance")
         if ml_predictions is not None and len(ml_predictions) > 0:
-            ml_completed = ml_predictions[ml_predictions['ml_correct'].isin(['YES', 'NO'])].copy()
-            
-            if len(ml_completed) > 0:
-                ml_total = len(ml_completed)
-                ml_correct = (ml_completed['ml_correct'] == 'YES').sum()
-                ml_wrong = ml_total - ml_correct
-                ml_accuracy = (ml_correct / ml_total * 100)
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.markdown(f"""
-                        <div class="stat-card">
-                            <div class="stat-value">{ml_total}</div>
-                            <div class="stat-label">Total Games</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"""
-                        <div class="stat-card">
-                            <div class="stat-value">{int(ml_correct)}</div>
-                            <div class="stat-label">Correct</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                with col3:
-                    st.markdown(f"""
-                        <div class="stat-card">
-                            <div class="stat-value" style="color: #f85149;">{int(ml_wrong)}</div>
-                            <div class="stat-label">Incorrect</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                with col4:
-                    st.markdown(f"""
-                        <div class="stat-card">
-                            <div class="stat-value" style="color: #a371f7;">{ml_accuracy:.1f}%</div>
-                            <div class="stat-label">Accuracy</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("📊 No completed games yet")
+            # ML predictions from Excel don't have ml_correct column yet
+            # We would need to add that tracking separately
+            st.info("🤖 ML model loaded - performance tracking coming soon")
+            st.caption(f"Total predictions: {len(ml_predictions)}")
         else:
             st.info("🤖 ML model not available")
 
