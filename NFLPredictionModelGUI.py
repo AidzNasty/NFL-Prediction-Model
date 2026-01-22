@@ -632,13 +632,44 @@ def main():
         
         # ML Model Performance
         st.markdown("### ML Model Performance")
-        if ml_predictions is not None and len(ml_predictions) > 0:
-            # ML predictions from Excel don't have ml_correct column yet
-            # We would need to add that tracking separately
-            st.info("🤖 ML model loaded - performance tracking coming soon")
-            st.caption(f"Total predictions: {len(ml_predictions)}")
+        completed = predictions[predictions['ml_correct'].isin(['YES', 'NO'])].copy()
+        if len(completed) > 0:
+            total = len(completed)
+            correct = (completed['ml_correct'] == 'YES').sum()
+            wrong = total - correct
+            accuracy = (correct / total * 100)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value">{total}</div>
+                        <div class="stat-label">Total Games</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value">{correct}</div>
+                        <div class="stat-label">Correct</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #f85149;">{wrong}</div>
+                        <div class="stat-label">Incorrect</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col4:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value">{accuracy:.1f}%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                """, unsafe_allow_html=True)
         else:
-            st.info("🤖 ML model not available")
+            st.info("📊 No completed games yet")
 
 if __name__ == "__main__":
     main()
