@@ -1,113 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NFL Prediction Model - UPDATED WITH UPCOMING GAMES
-Added: Upcoming Games page to show Conference Championship and other unplayed games
+NFL Prediction Model - Web App
+Displays Excel and ML predictions side by side in DraftKings/FanDuel style
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import os
-
-# PLAYOFF ROUND MAPPING
-PLAYOFF_ROUNDS = {
-    19: 'WildCard',
-    20: 'Divisional',
-    21: 'Conference',
-    22: 'SuperBowl'
-}
-
-ROUND_TO_WEEK = {
-    'wildcard': 19,
-    'divisional': 20,
-    'conference': 21,
-    'confchamp': 21,
-    'superbowl': 22
-}
-
-def week_display_format(week_value):
-    """Convert week number to display string"""
-    if pd.isna(week_value):
-        return "Unknown"
-    if isinstance(week_value, str):
-        week_lower = week_value.lower().strip()
-        if week_lower in ROUND_TO_WEEK:
-            return week_value.replace('SuperBowl', 'Super Bowl')
-        if 'wild' in week_lower:
-            return "Wild Card"
-        if 'division' in week_lower:
-            return "Divisional"
-        if 'conference' in week_lower or 'conf' in week_lower:
-            return "Conference Championship"
-        if 'super' in week_lower or 'bowl' in week_lower:
-            return "Super Bowl"
-        return week_value
-    try:
-        week_int = int(week_value)
-        if week_int <= 18:
-            return f"Week {week_int}"
-        if week_int == 19:
-            return "Wild Card"
-        if week_int == 20:
-            return "Divisional"
-        if week_int == 21:
-            return "Conference Championship"
-        if week_int == 22:
-            return "Super Bowl"
-        return PLAYOFF_ROUNDS.get(week_int, f"Week {week_int}").replace('SuperBowl', 'Super Bowl')
-    except:
-        return str(week_value)
-
-def normalize_week(week_value):
-    """Convert any week format to consistent number"""
-    if pd.isna(week_value):
-        return None
-    if isinstance(week_value, (int, float)):
-        try:
-            if np.isnan(week_value):
-                return None
-        except:
-            pass
-        return int(week_value)
-    if isinstance(week_value, str):
-        week_str = week_value.strip().lower()
-        if 'wild' in week_str:
-            return 19
-        if 'division' in week_str:
-            return 20
-        if 'conference' in week_str or 'conf' in week_str:
-            return 21
-        if 'super' in week_str or 'bowl' in week_str:
-            return 22
-        if week_str.startswith('week'):
-            try:
-                return int(week_str.split()[1])
-            except:
-                pass
-    try:
-        return int(week_value)
-    except:
-        return None
-
-def safe_int(value, default=0):
-    """Safely convert to int"""
-    try:
-        if pd.isna(value):
-            return default
-        return int(value)
-    except:
-        return default
-
-def safe_float(value, default=0.0):
-    """Safely convert to float"""
-    try:
-        if pd.isna(value):
-            return default
-        return float(value)
-    except:
-        return default
 
 # Page config
 st.set_page_config(
@@ -116,194 +17,470 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS
+# DraftKings/FanDuel Style CSS
 st.markdown("""
     <style>
-    .main {background: #f5f5f5;padding: 2rem 1rem;}
-    .stApp {background: #f5f5f5;}
-    h1, h2, h3 {color: #000000 !important;text-align: center;}
-    .centered-container {max-width: 1400px;margin: 0 auto;padding: 0 2rem;}
-    .game-card {background: #ffffff;padding: 2rem;border-radius: 12px;border: 1px solid #e0e0e0;margin: 1.5rem 0;box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);transition: transform 0.2s ease;}
-    .game-card:hover {transform: translateY(-2px);box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);}
-    .playoff-badge {background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);color: white;padding: 0.5rem 1rem;border-radius: 20px;font-weight: 700;display: inline-block;margin-bottom: 1rem;font-size: 1.1rem;}
-    .winner, .ml-winner {color: #2e7d32;font-size: 1.5rem;font-weight: 700;text-align: center;padding: 0.75rem;background: #e8f5e9;border-radius: 8px;margin: 0.5rem 0;border: 2px solid #4caf50;}
-    .metric-card {background: #ffffff;padding: 1.5rem;border-radius: 12px;border: 1px solid #e0e0e0;box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);margin: 1rem 0;}
-    .score-display {font-size: 2rem;font-weight: 700;text-align: center;padding: 1rem;background: #f0f0f0;border-radius: 10px;margin: 1rem 0;}
-    .prob-badge {display: inline-block;padding: 0.4rem 0.8rem;border-radius: 6px;font-weight: 600;font-size: 0.9rem;}
+    /* Main styling - Dark theme like DraftKings/FanDuel */
+    .main {
+        background: #0d1117;
+        padding: 1rem;
+    }
+    
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Dark background for entire app */
+    .stApp {
+        background: #0d1117;
+    }
+    
+    /* Typography - White text on dark */
+    h1 {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    h2, h3 {
+        color: #ffffff;
+        font-weight: 600;
+    }
+    
+    /* Sidebar dark theme */
+    .css-1d391kg {
+        background: #161b22;
+        border-right: 1px solid #30363d;
+    }
+    
+    /* Radio buttons styled */
+    .stRadio > div {
+        background: #161b22;
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+    
+    .stRadio label {
+        color: #c9d1d9;
+        font-weight: 500;
+    }
+    
+    /* Buttons - Green accent like DraftKings */
+    .stButton > button {
+        background: #00d4aa;
+        color: #0d1117;
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    
+    .stButton > button:hover {
+        background: #00b894;
+        transform: translateY(-1px);
+    }
+    
+    /* Selectbox dark theme */
+    .stSelectbox {
+        margin-bottom: 1rem;
+    }
+    
+    .stSelectbox label {
+        color: #c9d1d9 !important;
+        font-weight: 500;
+    }
+    
+    .stSelectbox > div > div {
+        background: #161b22 !important;
+        border: 1px solid #30363d !important;
+        color: #c9d1d9 !important;
+    }
+    
+    /* Dataframe dark theme */
+    .dataframe {
+        background: #161b22;
+        color: #c9d1d9;
+    }
+    
+    /* Caption text */
+    .stCaption {
+        color: #8b949e;
+    }
+    
+    /* Info boxes */
+    .stInfo {
+        background: #161b22;
+        border-left: 4px solid #00d4aa;
+        color: #c9d1d9;
+    }
+    
+    /* Betting Card Style */
+    .betting-card {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        transition: all 0.2s ease;
+    }
+    
+    .betting-card:hover {
+        border-color: #00d4aa;
+        box-shadow: 0 0 0 1px #00d4aa;
+    }
+    
+    /* Playoff Badge */
+    .playoff-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 1rem;
+    }
+    
+    /* Model Badge */
+    .model-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .badge-excel {
+        background: #1f6feb;
+        color: #ffffff;
+    }
+    
+    .badge-ml {
+        background: #a371f7;
+        color: #ffffff;
+    }
+    
+    /* Winner Highlight */
+    .winner-highlight {
+        color: #00d4aa;
+        font-weight: 700;
+    }
+    
+    /* Stats Grid */
+    .stat-card {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #00d4aa;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: #8b949e;
+        margin-top: 0.5rem;
+    }
+    
     </style>
 """, unsafe_allow_html=True)
 
+# Constants
 EXCEL_FILE = 'Aidan Conte NFL 2025-26 Prediction Model.xlsx'
 
-def get_probability_color(probability):
-    """Convert probability to color gradient"""
-    try:
-        prob = float(probability)
-    except:
-        prob = 0.5
-    normalized = max(0, min(1, (prob - 0.5) / 0.5))
-    if normalized < 0.5:
-        t = normalized * 2
-        r, g, b = int(211+(251-211)*t), int(47+(192-47)*t), int(47+(45-47)*t)
-    else:
-        t = (normalized - 0.5) * 2
-        r, g, b = int(251+(56-251)*t), int(192+(142-192)*t), int(45+(60-45)*t)
-    return f"#{r:02x}{g:02x}{b:02x}", f"rgba({r},{g},{b},0.15)"
+PLAYOFF_ROUNDS = {
+    19: 'Wild Card',
+    20: 'Divisional',
+    21: 'Conference Championship',
+    22: 'Super Bowl'
+}
 
-@st.cache_data
-def load_data():
-    """Load data from Excel file"""
+def normalize_week(week_value):
+    """Convert week to standard format"""
+    if pd.isna(week_value):
+        return None
+    if isinstance(week_value, (int, float)):
+        return int(week_value)
+    week_str = str(week_value).strip().lower()
+    playoff_map = {
+        'wildcard': 19, 'wild card': 19,
+        'division': 20, 'divisional': 20,
+        'confchamp': 21, 'conference': 21,
+        'superbowl': 22, 'super bowl': 22
+    }
+    for key, value in playoff_map.items():
+        if key in week_str:
+            return value
     try:
-        # Load HomeField Model predictions
-        df_raw = pd.read_excel(EXCEL_FILE, sheet_name='NFL HomeField Model', header=None)
-        home_edge = safe_float(df_raw.iloc[0, 1], 2.140576)
+        return int(float(week_str))
+    except:
+        return None
+
+def week_display_format(week_num):
+    """Display week nicely"""
+    if pd.isna(week_num):
+        return "Unknown"
+    week_num = int(week_num)
+    if week_num <= 18:
+        return f"Week {week_num}"
+    return PLAYOFF_ROUNDS.get(week_num, f"Week {week_num}")
+
+@st.cache_data(ttl=3600)
+def load_data():
+    """Load Excel data"""
+    try:
+        # Load Excel predictions
+        excel_raw = pd.read_excel(EXCEL_FILE, sheet_name='NFL HomeField Model', header=None)
+        excel = excel_raw.iloc[:, 3:].reset_index(drop=True)
+        excel.columns = excel.iloc[0]
+        excel = excel[1:].reset_index(drop=True)
         
-        # Load with header
-        predictions = pd.read_excel(EXCEL_FILE, sheet_name='NFL HomeField Model', header=0)
+        # Filter bad rows
+        excel = excel[
+            pd.notna(excel['Week']) & 
+            pd.notna(excel['Home Team']) & 
+            pd.notna(excel['Away Team'])
+        ].copy()
         
-        # Convert date
-        predictions['Date'] = pd.to_datetime(predictions['Date'], errors='coerce')
-        
-        # Normalize week values
-        predictions['Week_Num'] = predictions['Week'].apply(normalize_week)
-        predictions['Week_Display'] = predictions['Week_Num'].apply(week_display_format)
-        
-        # Remove rows with no week number
-        predictions = predictions[predictions['Week_Num'].notna()].copy()
+        # Normalize week
+        excel['Week_Num'] = excel['Week'].apply(normalize_week)
+        excel = excel[excel['Week_Num'].notna()].copy()
+        excel['Week_Display'] = excel['Week_Num'].apply(week_display_format)
         
         # Load standings
         standings = pd.read_excel(EXCEL_FILE, sheet_name='Standings')
-        standings = standings.fillna({'W': 0, 'L': 0, 'HomeWin%': 0.5, 'AwayWin%': 0.5, 'PTS': 0})
+        standings = standings.fillna({'W': 0, 'L': 0, 'HomeWin%': 0.5, 'AwayWin%': 0.5})
         
-        # Load ML predictions from Excel sheet
+        # Load ML predictions
+        ml_predictions = None
         try:
             ml_predictions = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=0)
             st.sidebar.success(f"✅ Loaded {len(ml_predictions)} ML predictions")
-            return predictions, standings, home_edge, ml_predictions
         except Exception as e:
-            st.sidebar.warning(f"ML Prediction Model sheet not found: {e}")
-            return predictions, standings, home_edge, None
-            
+            st.sidebar.warning(f"ML Model not found: {e}")
+            ml_predictions = pd.DataFrame()
+        
+        return excel, standings, ml_predictions
     except Exception as e:
         st.error(f"Error loading data: {e}")
-        import traceback
-        st.error(traceback.format_exc())
-        return None, None, None, None
+        return None, None, None
 
-def display_game(game, standings, home_edge, ml_pred=None):
-    """Display a single game"""
-    home_team = game['Home Team']
-    away_team = game['Away Team']
+def get_ml_prediction(home_team, away_team, week_num, ml_predictions):
+    """Get ML model prediction"""
+    if ml_predictions is None or len(ml_predictions) == 0:
+        return None
     
     try:
-        home_stats = standings[standings['Team'] == home_team].iloc[0]
-        away_stats = standings[standings['Team'] == away_team].iloc[0]
+        ml_game = ml_predictions[
+            (ml_predictions['week_num'] == week_num) &
+            (ml_predictions['home_team'] == home_team) &
+            (ml_predictions['away_team'] == away_team)
+        ]
     except:
-        st.warning(f"Stats missing for {home_team} or {away_team}")
+        return None
+    
+    if len(ml_game) == 0:
+        return None
+    
+    ml_game = ml_game.iloc[0]
+    
+    # Get confidence
+    ml_confidence = ml_game.get('ml_confidence', 0.5)
+    if isinstance(ml_confidence, str) and '%' in str(ml_confidence):
+        ml_confidence = float(str(ml_confidence).strip('%')) / 100.0
+    else:
+        ml_confidence = float(ml_confidence) if pd.notna(ml_confidence) else 0.5
+    
+    return {
+        'winner': ml_game.get('ml_winner'),
+        'home_score': int(ml_game.get('ml_home_score', 0)),
+        'away_score': int(ml_game.get('ml_away_score', 0)),
+        'confidence': ml_confidence
+    }
+
+def display_game_pick(game_row, standings, ml_predictions):
+    """Display a single game's pick in betting card style"""
+    home_team = game_row['Home Team']
+    away_team = game_row['Away Team']
+    week_display = game_row['Week_Display']
+    week_num = game_row['Week_Num']
+    is_playoff = week_num > 18
+    
+    # Get Excel prediction
+    excel_winner = game_row.get('Locked Prediction', game_row.get('Predicted Winner', 'TBD'))
+    excel_confidence = float(game_row.get('Locked Strength of Win', game_row.get('Strength of Win', 0.5)))
+    excel_homefield = float(game_row.get('Locked HomeField Differential', game_row.get('HomeEdge Differential', 0)))
+    
+    # Get ML prediction
+    ml_pred = get_ml_prediction(home_team, away_team, week_num, ml_predictions)
+    
+    # Get team records
+    try:
+        home_row = standings[standings['Team'] == home_team].iloc[0]
+        away_row = standings[standings['Team'] == away_team].iloc[0]
+    except:
         return
     
-    with st.container():
-        st.markdown('<div class="game-card">', unsafe_allow_html=True)
+    st.markdown('<div class="betting-card">', unsafe_allow_html=True)
+    
+    # Playoff badge
+    if is_playoff:
+        st.markdown(f'<div class="playoff-badge">🏆 {week_display}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="color: #8b949e; font-size: 0.85rem; font-weight: 500; margin-bottom: 1rem; text-transform: uppercase;">{week_display}</div>', unsafe_allow_html=True)
+    
+    # Teams
+    col1, col2, col3 = st.columns([3, 1, 2])
+    
+    with col1:
+        st.markdown(f'<div style="font-size: 1.2rem; font-weight: 600; color: #ffffff;">{away_team}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size: 0.85rem; color: #8b949e; margin-top: 0.25rem;">{int(away_row["W"])}-{int(away_row["L"])} | Away: {away_row["AwayWin%"]:.1%}</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div style="font-size: 1.5rem; font-weight: 700; color: #ffffff; text-align: center; padding: 0.5rem 0;">@</div>', unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f'<div style="font-size: 1.2rem; font-weight: 600; color: #ffffff; text-align: right;">{home_team}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size: 0.85rem; color: #8b949e; margin-top: 0.25rem; text-align: right;">{int(home_row["W"])}-{int(home_row["L"])} | Home: {home_row["HomeWin%"]:.1%}</div>', unsafe_allow_html=True)
+    
+    st.markdown("<hr style='margin: 1rem 0; border: none; border-top: 1px solid #30363d;'>", unsafe_allow_html=True)
+    
+    # Excel Prediction
+    st.markdown('<span class="model-badge badge-excel">EXCEL MODEL</span>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+            <div style='text-align: center; padding: 0.5rem;'>
+                <div style='color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Pick</div>
+                <div class='winner-highlight' style='font-size: 1.1rem; margin-top: 0.25rem;'>{excel_winner}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+            <div style='text-align: center; padding: 0.5rem;'>
+                <div style='color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>HomeField Edge</div>
+                <div style='color: #ffffff; font-size: 1.1rem; margin-top: 0.25rem;'>{excel_homefield:+.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+            <div style='text-align: center; padding: 0.5rem;'>
+                <div style='color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Confidence</div>
+                <div style='color: #00d4aa; font-size: 1.1rem; margin-top: 0.25rem;'>{excel_confidence:.1%}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # ML Prediction
+    if ml_pred:
+        st.markdown("<hr style='margin: 1rem 0; border: none; border-top: 1px solid #30363d;'>", unsafe_allow_html=True)
+        st.markdown('<span class="model-badge badge-ml">ML MODEL</span>', unsafe_allow_html=True)
         
-        # Playoff badge if applicable
-        if game['Week_Num'] > 18:
-            st.markdown(f'<div class="playoff-badge">🏆 {game["Week_Display"]}</div>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns(3)
         
-        # Header
-        col1, col2 = st.columns([1, 1])
         with col1:
-            if game['Week_Num'] <= 18:
-                st.markdown(f"**{game['Week_Display']}**")
+            st.markdown(f"""
+                <div style='text-align: center; padding: 0.5rem;'>
+                    <div style='color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Pick</div>
+                    <div class='winner-highlight' style='font-size: 1.1rem; margin-top: 0.25rem;'>{ml_pred['winner']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        
         with col2:
-            try:
-                if pd.notna(game['Date']):
-                    st.markdown(f"**{game['Date'].strftime('%a, %b %d')}**")
-                else:
-                    st.markdown("**Date TBD**")
-            except:
-                st.markdown("**Date TBD**")
+            st.markdown(f"""
+                <div style='text-align: center; padding: 0.5rem;'>
+                    <div style='color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Predicted Score</div>
+                    <div style='color: #ffffff; font-size: 1.1rem; margin-top: 0.25rem;'>{ml_pred['away_score']}-{ml_pred['home_score']}</div>
+                </div>
+            """, unsafe_allow_html=True)
         
-        st.markdown("---")
+        with col3:
+            st.markdown(f"""
+                <div style='text-align: center; padding: 0.5rem;'>
+                    <div style='color: #8b949e; font-size: 0.75rem; text-transform: uppercase;'>Confidence</div>
+                    <div style='color: #a371f7; font-size: 1.1rem; margin-top: 0.25rem;'>{ml_pred['confidence']:.1%}</div>
+                </div>
+            """, unsafe_allow_html=True)
         
-        # Teams
-        col_away, col_vs, col_home = st.columns([2, 1, 2])
-        with col_away:
-            st.markdown(f"### 🏈 {away_team}")
-            st.caption(f"Record: {safe_int(away_stats.get('W',0))}-{safe_int(away_stats.get('L',0))}")
-            st.caption(f"Away: {safe_float(away_stats.get('AwayWin%',0.5)):.1%}")
-        with col_vs:
-            st.markdown("<br><h4 style='text-align:center;'>@</h4>", unsafe_allow_html=True)
-        with col_home:
-            st.markdown(f"### 🏈 {home_team}")
-            st.caption(f"Record: {safe_int(home_stats.get('W',0))}-{safe_int(home_stats.get('L',0))}")
-            st.caption(f"Home: {safe_float(home_stats.get('HomeWin%',0.5)):.1%}")
-        
-        st.markdown("---")
-        
-        # Excel Prediction
-        st.markdown("### 📊 Excel Model")
-        excel_winner = game.get('Locked Prediction', game.get('Predictied Winner', 'TBD'))
-        excel_prob = safe_float(game.get('Locked Strength of Win', game.get('Strength of Win', 0.5)))
-        homefield = safe_float(game.get('Locked HomeField Differential', game.get('HomeEdge Differential', 0)))
-        
-        prob_color, prob_bg = get_probability_color(excel_prob)
-        
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.markdown(f'<div class="winner">{excel_winner}</div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<span class="prob-badge" style="background:{prob_bg};color:{prob_color};">{excel_prob:.1%}</span>', unsafe_allow_html=True)
-            st.caption(f"HomeField: {homefield:+.2f}")
-        
-        # ML Prediction
-        if ml_pred is not None:
-            st.markdown("<br>### 🤖 ML Model", unsafe_allow_html=True)
-            
-            ml_winner = ml_pred.get('ml_winner')
-            ml_home = safe_int(ml_pred.get('ml_home_score', 0))
-            ml_away = safe_int(ml_pred.get('ml_away_score', 0))
-            
-            try:
-                ml_conf_str = str(ml_pred.get('ml_confidence', '0.5'))
-                ml_conf_str = ml_conf_str.replace('%', '')
-                ml_conf = float(ml_conf_str)
-                if ml_conf > 1:  # If it's a percentage like 50.0 instead of 0.5
-                    ml_conf = ml_conf / 100
-            except:
-                ml_conf = 0.5
-            
-            ml_color, ml_bg = get_probability_color(ml_conf)
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                st.markdown(f'<div class="ml-winner">{ml_winner}</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="score-display">{away_team}: {ml_away} | {home_team}: {ml_home}</div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'<span class="prob-badge" style="background:{ml_bg};color:{ml_color};">{ml_conf:.1%}</span>', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Agreement indicator
+        if excel_winner == ml_pred['winner']:
+            st.markdown('<div style="text-align: center; margin-top: 1rem; padding: 0.5rem; background: #0d1117; border-radius: 4px; color: #00d4aa; font-weight: 600;">✓ Both Models Agree</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="text-align: center; margin-top: 1rem; padding: 0.5rem; background: #0d1117; border-radius: 4px; color: #ffa500; font-weight: 600;">⚠ Models Disagree</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
-    predictions, standings, home_edge, ml_predictions = load_data()
+    predictions, standings, ml_predictions = load_data()
     
-    if predictions is None:
-        st.error("Failed to load data. Check Excel file.")
+    if predictions is None or standings is None:
+        st.error("❌ Error loading data. Please check your Excel file.")
         return
     
-    st.sidebar.title("🏈 NFL Predictions")
-    st.sidebar.markdown("---")
-    page = st.sidebar.radio("Navigation", ["🏆 Upcoming Games", "📅 Today's Games", "📋 All Games", "📊 Performance", "🔄 Model Comparison"])
+    # Header
+    st.markdown("""
+        <div style='background: #161b22; border-bottom: 2px solid #00d4aa; padding: 1.5rem 0; margin-bottom: 2rem;'>
+            <div style='max-width: 1200px; margin: 0 auto; padding: 0 1rem;'>
+                <h1 style='color: #ffffff; margin: 0; font-size: 2rem; font-weight: 700;'>NFL PREDICTIONS</h1>
+                <p style='color: #8b949e; margin: 0.5rem 0 0 0; font-size: 0.9rem;'>2025-26 Season • Advanced Analytics & Machine Learning</p>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
-    st.markdown('<div class="centered-container">', unsafe_allow_html=True)
-    st.title("🏈 NFL Prediction Model 2025-26")
-    st.markdown("<br>", unsafe_allow_html=True)
+    now = datetime.now()
+    st.caption(f"Last updated: {now.strftime('%Y-%m-%d %I:%M %p')} ET")
     
-    # UPCOMING GAMES (Conference Championship, etc.)
-    if page == "🏆 Upcoming Games":
-        st.subheader("🏆 Upcoming Games")
-        st.markdown("<br>", unsafe_allow_html=True)
+    # Top Dropdown Menu
+    st.markdown("""
+        <div style='background: #161b22; border: 1px solid #30363d; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;'>
+            <p style='color: #c9d1d9; font-weight: 600; margin: 0 0 0.5rem 0; font-size: 0.9rem;'>📊 SELECT PAGE</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    page = st.selectbox(
+        label="Navigate to:",
+        options=["🏈 Upcoming Games", "📋 All Games", "📊 Standings", "📈 Model Performance"],
+        index=0,
+        label_visibility="collapsed",
+        key="page_selector"
+    )
+    
+    # Sidebar
+    st.sidebar.markdown("""
+        <div style='background: #161b22; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #30363d;'>
+            <h3 style='color: #ffffff; margin: 0; font-size: 1rem;'>QUICK ACTIONS</h3>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+    
+    # PAGE CONTENT
+    if page == "🏈 Upcoming Games":
+        st.markdown("""
+            <div style='background: #161b22; border: 1px solid #30363d; padding: 1.5rem; border-radius: 8px; margin: 1.5rem 0;'>
+                <h2 style='color: #ffffff; margin: 0; font-size: 1.5rem;'>UPCOMING GAMES</h2>
+                <p style='color: #8b949e; margin: 0.5rem 0 0 0; font-size: 0.9rem;'>Next games to be played</p>
+            </div>
+        """, unsafe_allow_html=True)
         
-        # Get games without Locked Correct (not yet played)
+        # Get upcoming games (no Locked Correct marked)
         upcoming_games = predictions[
             predictions['Locked Correct'].isna() | 
             (~predictions['Locked Correct'].isin(['YES', 'NO']))
@@ -312,213 +489,155 @@ def main():
         if len(upcoming_games) == 0:
             st.info("✅ No upcoming games - Season complete!")
         else:
-            # Show all upcoming games grouped by week
-            for week_display in sorted(upcoming_games['Week_Display'].unique(), 
-                                      key=lambda x: upcoming_games[upcoming_games['Week_Display']==x]['Week_Num'].iloc[0]):
-                week_games = upcoming_games[upcoming_games['Week_Display'] == week_display]
-                
-                st.success(f"📅 **{week_display}** ({len(week_games)} game{'s' if len(week_games) > 1 else ''})")
-                
-                for idx, game in week_games.iterrows():
-                    ml_pred = None
-                    if ml_predictions is not None:
-                        try:
-                            week_num = normalize_week(game['Week'])
-                            ml_match = ml_predictions[
-                                (ml_predictions['week_num'] == week_num) &
-                                (ml_predictions['home_team'] == game['Home Team']) &
-                                (ml_predictions['away_team'] == game['Away Team'])
-                            ]
-                            if len(ml_match) > 0:
-                                ml_pred = ml_match.iloc[0]
-                        except:
-                            pass
-                    
-                    display_game(game, standings, home_edge, ml_pred)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-    
-    # TODAY'S GAMES
-    elif page == "📅 Today's Games":
-        st.subheader("🎯 Today's Games")
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        today = pd.Timestamp.now().normalize()
-        predictions['Date_Only'] = predictions['Date'].dt.normalize()
-        todays_games = predictions[predictions['Date_Only'] == today]
-        
-        if len(todays_games) == 0:
-            st.info(f"No games scheduled for {today.strftime('%A, %B %d, %Y')}")
-        else:
-            st.success(f"📅 {len(todays_games)} game(s) today")
+            st.success(f"🏈 {len(upcoming_games)} upcoming games")
             
-            for idx, game in todays_games.iterrows():
-                ml_pred = None
-                if ml_predictions is not None:
-                    try:
-                        week_num = normalize_week(game['Week'])
-                        ml_match = ml_predictions[
-                            (ml_predictions['week_num'] == week_num) &
-                            (ml_predictions['home_team'] == game['Home Team']) &
-                            (ml_predictions['away_team'] == game['Away Team'])
-                        ]
-                        if len(ml_match) > 0:
-                            ml_pred = ml_match.iloc[0]
-                    except:
-                        pass
-                
-                display_game(game, standings, home_edge, ml_pred)
+            for idx, game in upcoming_games.iterrows():
+                display_game_pick(game, standings, ml_predictions)
     
-    # ALL GAMES
     elif page == "📋 All Games":
-        st.subheader("📋 All Games")
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("""
+            <div style='background: #161b22; border: 1px solid #30363d; padding: 1.5rem; border-radius: 8px; margin: 1.5rem 0;'>
+                <h2 style='color: #ffffff; margin: 0; font-size: 1.5rem;'>ALL GAMES</h2>
+                <p style='color: #8b949e; margin: 0.5rem 0 0 0; font-size: 0.9rem;'>Full season schedule and predictions</p>
+            </div>
+        """, unsafe_allow_html=True)
         
         unique_displays = sorted(predictions['Week_Display'].unique(), 
                                  key=lambda x: predictions[predictions['Week_Display']==x]['Week_Num'].iloc[0])
-        selected_week = st.sidebar.selectbox("Filter by Week", ["All Weeks"] + list(unique_displays))
+        selected_week = st.selectbox("Filter by Week", ["All Weeks"] + list(unique_displays))
         
         filtered_games = predictions if selected_week == "All Weeks" else predictions[predictions['Week_Display'] == selected_week]
         st.info(f"Showing {len(filtered_games)} games")
         
         for idx, game in filtered_games.iterrows():
-            ml_pred = None
-            if ml_predictions is not None:
-                try:
-                    week_num = normalize_week(game['Week'])
-                    ml_match = ml_predictions[
-                        (ml_predictions['week_num'] == week_num) &
-                        (ml_predictions['home_team'] == game['Home Team']) &
-                        (ml_predictions['away_team'] == game['Away Team'])
-                    ]
-                    if len(ml_match) > 0:
-                        ml_pred = ml_match.iloc[0]
-                except:
-                    pass
-            
-            display_game(game, standings, home_edge, ml_pred)
+            display_game_pick(game, standings, ml_predictions)
     
-    # PERFORMANCE
-    elif page == "📊 Performance":
-        st.subheader("📊 Model Performance")
-        st.markdown("<br>", unsafe_allow_html=True)
+    elif page == "📊 Standings":
+        st.markdown("""
+            <div style='background: #161b22; border: 1px solid #30363d; padding: 1.5rem; border-radius: 8px; margin: 1.5rem 0;'>
+                <h2 style='color: #ffffff; margin: 0; font-size: 1.5rem;'>STANDINGS</h2>
+                <p style='color: #8b949e; margin: 0.5rem 0 0 0; font-size: 0.9rem;'>2025-26 Season Team Rankings</p>
+            </div>
+        """, unsafe_allow_html=True)
         
-        correct_col = 'Locked Correct'
-        completed = predictions[predictions[correct_col].isin(['YES', 'NO'])].copy()
+        if standings is not None and len(standings) > 0:
+            display_cols = ['Team', 'W', 'L', 'HomeWin%', 'AwayWin%', 'HomePts per Game', 'AwayPts per Game']
+            available_cols = [col for col in display_cols if col in standings.columns]
+            
+            if len(available_cols) > 0:
+                standings_display = standings[available_cols].copy()
+                
+                if 'HomeWin%' in standings_display.columns:
+                    standings_display['Home Win %'] = standings_display['HomeWin%'].apply(lambda x: f"{x:.1%}")
+                    standings_display = standings_display.drop('HomeWin%', axis=1)
+                if 'AwayWin%' in standings_display.columns:
+                    standings_display['Away Win %'] = standings_display['AwayWin%'].apply(lambda x: f"{x:.1%}")
+                    standings_display = standings_display.drop('AwayWin%', axis=1)
+                
+                st.dataframe(
+                    standings_display,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=600
+                )
+            else:
+                st.dataframe(standings, use_container_width=True, hide_index=True, height=600)
+    
+    elif page == "📈 Model Performance":
+        st.markdown("""
+            <div style='background: #161b22; border: 1px solid #30363d; padding: 1.5rem; border-radius: 8px; margin: 1.5rem 0;'>
+                <h2 style='color: #ffffff; margin: 0; font-size: 1.5rem;'>MODEL PERFORMANCE</h2>
+                <p style='color: #8b949e; margin: 0.5rem 0 0 0; font-size: 0.9rem;'>Track accuracy and compare predictions</p>
+            </div>
+        """, unsafe_allow_html=True)
         
-        if len(completed) == 0:
-            st.info("No completed games yet")
-        else:
+        # Excel Model Performance
+        st.markdown("### Excel Model Performance")
+        completed = predictions[predictions['Locked Correct'].isin(['YES', 'NO'])].copy()
+        if len(completed) > 0:
             total = len(completed)
-            correct = (completed[correct_col] == 'YES').sum()
+            correct = (completed['Locked Correct'] == 'YES').sum()
+            wrong = total - correct
             accuracy = (correct / total * 100)
             
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.markdown("### 📈 Excel Model - Overall Results")
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Games", total)
-            col2.metric("Correct", correct)
-            col3.metric("Wrong", total - correct)
-            col4.metric("Accuracy", f"{accuracy:.1f}%")
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Week-by-week
-            st.markdown("<br>")
-            week_stats = completed.groupby('Week_Display').agg({
-                correct_col: [('correct', lambda x: (x == 'YES').sum()), ('total', 'count')]
-            }).reset_index()
-            week_stats.columns = ['Week', 'Correct', 'Total']
-            week_stats['Accuracy'] = (week_stats['Correct'] / week_stats['Total'] * 100).round(1)
-            week_stats = week_stats.merge(
-                completed[['Week_Display', 'Week_Num']].drop_duplicates(),
-                left_on='Week', right_on='Week_Display'
-            ).sort_values('Week_Num').drop(columns=['Week_Display', 'Week_Num'])
-            
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.markdown("### 📊 Week-by-Week Performance")
-            st.dataframe(week_stats, use_container_width=True, hide_index=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            with col1:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value">{total}</div>
+                        <div class="stat-label">Total Games</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value">{correct}</div>
+                        <div class="stat-label">Correct</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #f85149;">{wrong}</div>
+                        <div class="stat-label">Incorrect</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col4:
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="stat-value">{accuracy:.1f}%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("📊 No completed games yet")
+        
+        st.markdown("<hr style='margin: 2rem 0; border: none; border-top: 1px solid #30363d;'>", unsafe_allow_html=True)
         
         # ML Model Performance
-        if ml_predictions is not None:
-            st.markdown("---")
-            st.markdown("### 🤖 ML Model Performance")
+        st.markdown("### ML Model Performance")
+        if ml_predictions is not None and len(ml_predictions) > 0:
             ml_completed = ml_predictions[ml_predictions['ml_correct'].isin(['YES', 'NO'])].copy()
             
             if len(ml_completed) > 0:
                 ml_total = len(ml_completed)
                 ml_correct = (ml_completed['ml_correct'] == 'YES').sum()
+                ml_wrong = ml_total - ml_correct
                 ml_accuracy = (ml_correct / ml_total * 100)
                 
-                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-                st.markdown("#### 📈 Overall Results")
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Total", ml_total)
-                col2.metric("Correct", ml_correct)
-                col3.metric("Wrong", ml_total - ml_correct)
-                col4.metric("Accuracy", f"{ml_accuracy:.1f}%")
-                st.markdown('</div>', unsafe_allow_html=True)
-    
-    # MODEL COMPARISON
-    elif page == "🔄 Model Comparison":
-        if ml_predictions is None or len(ml_predictions) == 0:
-            st.info("ML predictions not available")
-        else:
-            st.subheader("🔄 Excel vs ML Comparison")
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            ml_completed = ml_predictions[
-                (ml_predictions['ml_correct'].isin(['YES', 'NO'])) &
-                (ml_predictions['excel_correct'].isin(['YES', 'NO']))
-            ].copy()
-            
-            if len(ml_completed) == 0:
-                st.info("No completed games to compare")
+                with col1:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value">{ml_total}</div>
+                            <div class="stat-label">Total Games</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with col2:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value">{int(ml_correct)}</div>
+                            <div class="stat-label">Correct</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with col3:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #f85149;">{int(ml_wrong)}</div>
+                            <div class="stat-label">Incorrect</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with col4:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #a371f7;">{ml_accuracy:.1f}%</div>
+                            <div class="stat-label">Accuracy</div>
+                        </div>
+                    """, unsafe_allow_html=True)
             else:
-                ml_total = len(ml_completed)
-                ml_correct = (ml_completed['ml_correct'] == 'YES').sum()
-                excel_correct = (ml_completed['excel_correct'] == 'YES').sum()
-                ml_accuracy = (ml_correct / ml_total * 100)
-                excel_accuracy = (excel_correct / ml_total * 100)
-                
-                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-                st.markdown("### 📊 Head-to-Head Comparison")
-                st.caption(f"Based on {ml_total} completed games")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Excel Accuracy", f"{excel_accuracy:.1f}%")
-                col1.caption(f"{excel_correct}/{ml_total} correct")
-                col2.metric("ML Accuracy", f"{ml_accuracy:.1f}%")
-                col2.caption(f"{ml_correct}/{ml_total} correct")
-                diff = ml_accuracy - excel_accuracy
-                col3.metric("Difference", f"{diff:+.1f}%")
-                col3.caption("🤖 ML leads" if diff > 0 else "📊 Excel leads" if diff < 0 else "🤝 Tied")
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Recent games
-                st.markdown("### 📋 Recent Games Breakdown")
-                recent = ml_completed.tail(10)
-                display_data = []
-                for _, game in recent.iterrows():
-                    excel_result = "✅" if game['excel_correct'] == 'YES' else "❌"
-                    ml_result = "✅" if game['ml_correct'] == 'YES' else "❌"
-                    week_str = week_display_format(game.get('week_num', game.get('week', 0)))
-                    
-                    excel_pred = game.get('excel_winner', 'N/A')
-                    ml_pred = game.get('ml_winner', 'N/A')
-                    
-                    display_data.append({
-                        "Week": week_str,
-                        "Matchup": f"{game['away_team']} @ {game['home_team']}",
-                        "Winner": game.get('actual_winner', 'TBD'),
-                        "Excel": f"{excel_result} {excel_pred}",
-                        "ML": f"{ml_result} {ml_pred}"
-                    })
-                st.dataframe(display_data, use_container_width=True, hide_index=True)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### About")
-    st.sidebar.info("**NFL Prediction Model 2025-26**\n\n📊 Excel & 🤖 ML Models\n\nRegular Season + Playoffs")
+                st.info("📊 No completed games yet")
+        else:
+            st.info("🤖 ML model not available")
 
 if __name__ == "__main__":
     main()
