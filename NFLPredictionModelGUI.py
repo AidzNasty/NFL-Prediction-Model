@@ -263,13 +263,13 @@ def load_data():
         standings = pd.read_excel(EXCEL_FILE, sheet_name='Standings')
         standings = standings.fillna({'W': 0, 'L': 0, 'HomeWin%': 0.5, 'AwayWin%': 0.5})
         
-        # Load ML predictions from Excel sheet "ML Prediction Model" (columns B-G)
+        # Load ML predictions from Excel sheet "ML Prediction Model" (columns B-H to include ml_correct)
         ml_predictions = None
         try:
             ml_raw = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=None)
             
-            # Extract columns B through G (indices 1-6)
-            ml_data = ml_raw.iloc[:, 1:7].copy()
+            # Extract columns B through H (indices 1-7) to include ml_correct
+            ml_data = ml_raw.iloc[:, 1:8].copy()
             
             # Row 0 has headers
             ml_data.columns = ml_data.iloc[0]
@@ -279,7 +279,7 @@ def load_data():
             
             st.sidebar.success(f"✅ Loaded {len(ml_predictions)} ML predictions from Excel")
             if len(ml_predictions) > 0:
-                st.sidebar.caption(f"Columns: {', '.join(ml_predictions.columns.tolist())}")
+                st.sidebar.caption(f"Columns: {', '.join([str(c) for c in ml_predictions.columns.tolist()])}")
                 # Show first few games
                 st.sidebar.caption(f"Sample: {ml_predictions.iloc[0]['away_team']} @ {ml_predictions.iloc[0]['home_team']}")
         except Exception as e:
@@ -587,8 +587,15 @@ def main():
             </div>
         """, unsafe_allow_html=True)
         
-        # Excel Model Performance
-        st.markdown("### Excel Model Performance")
+        # =====================
+        # EXCEL MODEL PERFORMANCE
+        # =====================
+        st.markdown("""
+            <div style='margin-top: 1.5rem;'>
+                <span class="model-badge badge-excel" style="font-size: 1rem; padding: 0.5rem 1rem;">EXCEL MODEL</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
         completed = predictions[predictions['Locked Correct'].isin(['YES', 'NO'])].copy()
         if len(completed) > 0:
             total = len(completed)
@@ -630,19 +637,26 @@ def main():
         
         st.markdown("<hr style='margin: 2rem 0; border: none; border-top: 1px solid #30363d;'>", unsafe_allow_html=True)
         
-        # ML Model Performance
-        st.markdown("### ML Model Performance")
+        # =====================
+        # ML MODEL PERFORMANCE
+        # =====================
+        st.markdown("""
+            <div style='margin-top: 1.5rem;'>
+                <span class="model-badge badge-ml" style="font-size: 1rem; padding: 0.5rem 1rem;">ML MODEL</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
         if ml_predictions is not None and len(ml_predictions) > 0:
-            ml_completed = ml_predictions[pd.notna(ml_predictions.get('ml_correct', pd.Series()))].copy()
-            if len(ml_completed) > 0:
-                ml_completed['ml_correct_num'] = ml_completed['ml_correct'].apply(
-                    lambda x: 1 if str(x).upper() == 'YES' else 0 if str(x).upper() == 'NO' else np.nan
-                )
-                ml_completed = ml_completed[pd.notna(ml_completed['ml_correct_num'])]
+            # Check if ml_correct column exists
+            if 'ml_correct' in ml_predictions.columns:
+                # Filter to completed games
+                ml_completed = ml_predictions[
+                    ml_predictions['ml_correct'].astype(str).str.upper().isin(['YES', 'NO'])
+                ].copy()
                 
                 if len(ml_completed) > 0:
                     ml_total = len(ml_completed)
-                    ml_correct = ml_completed['ml_correct_num'].sum()
+                    ml_correct = (ml_completed['ml_correct'].astype(str).str.upper() == 'YES').sum()
                     ml_wrong = ml_total - ml_correct
                     ml_accuracy = (ml_correct / ml_total * 100)
                     
@@ -676,11 +690,130 @@ def main():
                             </div>
                         """, unsafe_allow_html=True)
                 else:
-                    st.info("📊 No completed games yet")
+                    st.info("📊 No completed ML predictions yet")
             else:
-                st.info("📊 No completed games yet")
+                st.warning("⚠️ ml_correct column not found in ML Prediction Model sheet")
+                st.caption(f"Available columns: {', '.join([str(c) for c in ml_predictions.columns.tolist()])}")
         else:
             st.info("🤖 ML model not available")
+        
+        st.markdown("<hr style='margin: 2rem 0; border: none; border-top: 1px solid #30363d;'>", unsafe_allow_html=True)
+        
+        # =====================
+        # MODEL COMPARISON
+        # =====================
+        st.markdown("""
+            <div style='margin-top: 1.5rem;'>
+                <h3 style='color: #ffffff;'>📊 Model Comparison</h3>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Compare both models on same games
+        if ml_predictions is not None and len(ml_predictions) > 0 and 'ml_correct' in ml_predictions.columns:
+            completed_excel = predictions[predictions['Locked Correct'].isin(['YES', 'NO'])].copy()
+            
+            if len(completed_excel) > 0:
+                # Count agreements and disagreements
+                agreements = 0
+                disagreements = 0
+                both_correct = 0
+                both_wrong = 0
+                excel_only_correct = 0
+                ml_only_correct = 0
+                
+                for idx, excel_game in completed_excel.iterrows():
+                    home_team = excel_game['Home Team']
+                    away_team = excel_game['Away Team']
+                    excel_correct = excel_game['Locked Correct'] == 'YES'
+                    excel_winner = excel_game.get('Locked Prediction', excel_game.get('Predicted Winner', ''))
+                    
+                    # Find matching ML prediction
+                    ml_match = ml_predictions[
+                        (ml_predictions['home_team'] == home_team) &
+                        (ml_predictions['away_team'] == away_team)
+                    ]
+                    
+                    if len(ml_match) > 0:
+                        ml_game = ml_match.iloc[0]
+                        ml_winner = str(ml_game.get('ml_winner', ''))
+                        ml_correct_val = str(ml_game.get('ml_correct', '')).upper()
+                        ml_correct = ml_correct_val == 'YES'
+                        
+                        # Check agreement
+                        if excel_winner == ml_winner:
+                            agreements += 1
+                        else:
+                            disagreements += 1
+                        
+                        # Check correctness
+                        if ml_correct_val in ['YES', 'NO']:
+                            if excel_correct and ml_correct:
+                                both_correct += 1
+                            elif not excel_correct and not ml_correct:
+                                both_wrong += 1
+                            elif excel_correct and not ml_correct:
+                                excel_only_correct += 1
+                            elif not excel_correct and ml_correct:
+                                ml_only_correct += 1
+                
+                # Display comparison stats
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #00d4aa;">{agreements}</div>
+                            <div class="stat-label">Models Agreed</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #ffa500;">{disagreements}</div>
+                            <div class="stat-label">Models Disagreed</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #00d4aa;">{both_correct}</div>
+                            <div class="stat-label">Both Correct</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #f85149;">{both_wrong}</div>
+                            <div class="stat-label">Both Wrong</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #1f6feb;">{excel_only_correct}</div>
+                            <div class="stat-label">Excel Only Correct</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col4:
+                    st.markdown(f"""
+                        <div class="stat-card">
+                            <div class="stat-value" style="color: #a371f7;">{ml_only_correct}</div>
+                            <div class="stat-label">ML Only Correct</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("📊 No completed games to compare")
+        else:
+            st.info("📊 Need ML predictions with results to compare models")
 
 if __name__ == "__main__":
     main()
