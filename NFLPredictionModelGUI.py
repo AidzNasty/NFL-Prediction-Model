@@ -263,13 +263,13 @@ def load_data():
         standings = pd.read_excel(EXCEL_FILE, sheet_name='Standings')
         standings = standings.fillna({'W': 0, 'L': 0, 'HomeWin%': 0.5, 'AwayWin%': 0.5})
         
-        # Load ML predictions from Excel sheet "ML Prediction Model" (columns B-H to include ml_correct)
+        # Load ML predictions from Excel sheet "ML Prediction Model" (columns B-I to include ml_correct)
         ml_predictions = None
         try:
             ml_raw = pd.read_excel(EXCEL_FILE, sheet_name='ML Prediction Model', header=None)
             
-            # Extract columns B through H (indices 1-7) to include ml_correct
-            ml_data = ml_raw.iloc[:, 1:8].copy()
+            # Extract columns B through I (indices 1-8) to include ml_correct
+            ml_data = ml_raw.iloc[:, 1:9].copy()
             
             # Row 0 has headers
             ml_data.columns = ml_data.iloc[0]
